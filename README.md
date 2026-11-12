@@ -36,7 +36,7 @@ flowchart LR
 | 뷰 → 시트 자동 배치 | 미배치 뷰 여러 개 선택 → 도곽 선택 → 확인 | 뷰마다 새 시트 1개, 중앙에 뷰 배치 |
 | 시트 목록 내보내기 | 저장할 위치 선택 | 시트 번호와 이름이 담긴 CSV |
 
-같은 시트 번호가 있으면 생성 전에 알려줍니다. 자동 배치는 기존 번호를 피해서 `RA-001`, `RA-002` 순으로 번호를 붙입니다. 생성 중 오류가 나면 해당 작업을 취소하며, 정상 완료한 작업도 Revit에서 실행 취소 1회로 되돌릴 수 있습니다.
+같은 시트 번호가 있으면 생성 전에 알려줍니다. 자동 배치는 기존 번호를 피해서 `RA-001`, `RA-002` 순으로 번호를 붙입니다. `{3D}`처럼 시트 이름에 쓸 수 없는 문자가 들어간 뷰는 새 시트 이름에서 해당 문자를 정리합니다(예: `{3D}` → `3D`). 원래 뷰 이름은 바꾸지 않습니다. 생성 중 오류가 나면 해당 작업을 취소하며, 정상 완료한 작업도 Revit에서 실행 취소 1회로 되돌릴 수 있습니다.
 
 ## 설치하기
 
@@ -57,6 +57,8 @@ powershell -ExecutionPolicy Bypass -File scripts/install-extension.ps1
 이전 C# 버전을 설치했다면 Revit을 닫고 `%APPDATA%\Autodesk\Revit\Addins\2026`의 `Youns.RevitAuto.addin`과 `Youns.RevitAuto` 폴더를 제거한 뒤 전환하세요.
 
 ## 바로 써볼 예제
+
+기존 RVT 모델에 처음 적용한다면 [사본으로 실습하는 순서](docs/first-practice.md)를 따라가세요. [실습 CSV](samples/practice-sheets.csv)는 `PRACTICE-001`부터 번호를 붙여 기존 도면과 구분합니다.
 
 ‘CSV 시트 일괄 생성’에서 [samples/house-sheets.csv](samples/house-sheets.csv)를 선택하면 단독주택 시트 5개를 만들 수 있습니다. 직접 작성할 때도 첫 줄은 `Number,Name`으로 맞추고 **UTF-8 CSV**로 저장하세요.
 
@@ -82,7 +84,9 @@ tests/                            Python 자동 검사
 scripts/                          설치와 검사 실행
 ```
 
-Revit 없이 검사하려면 일반 Python 3에서 `python scripts/check.py`를 실행합니다. 자동 검사 24개로 한글 CSV, 중복 번호, 자동 번호, 취소·오류 시 작업 처리 등을 확인했습니다. 트랜잭션 검사는 대체 API를 사용한 로직 검사입니다. **실제 Revit에서의 리본 로딩과 모델 변경은 아직 확인하지 않았습니다.** [수동 확인 순서](docs/manual-checks.md)를 참고하세요.
+Revit 없이 검사하려면 일반 Python 3에서 `python scripts/check.py`를 실행합니다. 검사 35개 중 34개 통과, CLR 전용 1개 제외를 확인했습니다. `tests/test_unicode_runtime.py`의 한글·CSV 회귀 검사 9개는 설치된 pyRevit의 IronPython 2.7.12 엔진을 별도 .NET 프로세스에서 구동해 모두 통과했습니다. 트랜잭션과 Revit 이름 검사는 대체 API를 사용한 로직 검사입니다. 실제 Revit 모델에 수정 코드를 실행한 결과와는 구분합니다. [수동 확인 순서](docs/manual-checks.md)를 참고하세요.
+
+한글 CSV는 메모리에서 유니코드로 유지하고, 파일 입출력 경계에서만 UTF-8 BOM으로 처리합니다. IronPython CSV 처리 중 중간에 바이트로 변환하면 한글이 깨질 수 있어 그 변환을 제거했습니다. Excel에서도 UTF-8 CSV 형식으로 저장하세요. 이전 버전에서 깨져 내보낸 파일은 수정 버전 적용 후 다시 내보내는 것을 권장합니다.
 
 줄바꿈이 들어간 번호·이름은 거부합니다. CSV 저장 시 수식으로 해석될 수 있는 값(`=`, `+`, `-`, `@`로 시작)에는 작은따옴표를 붙이므로 해당 값은 다시 가져올 때 이름이 달라질 수 있습니다. 축척 자동 맞춤, 범례·스케줄 배치, PDF 출력은 포함하지 않습니다.
 

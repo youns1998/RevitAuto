@@ -22,6 +22,12 @@ def _sheets(doc):
     return list(DB.FilteredElementCollector(doc).OfClass(DB.ViewSheet))
 
 
+def _validate_revit_names(plan):
+    for item in plan:
+        if not DB.NamingUtils.IsValidName(item.name):
+            raise ValueError("시트 '{}'의 이름에 Revit에서 허용하지 않는 문자가 있습니다: {}".format(item.number, item.name))
+
+
 def _titleblock(doc):
     options = {'도곽 없이 생성': DB.ElementId.InvalidElementId}
     for symbol in DB.FilteredElementCollector(doc).OfClass(DB.FamilySymbol).OfCategory(DB.BuiltInCategory.OST_TitleBlocks):
@@ -64,6 +70,7 @@ def import_sheets(doc):
     if not path:
         return
     plan = validate(read_csv_file(path), [x.SheetNumber for x in _sheets(doc)])
+    _validate_revit_names(plan)
     titleblock = _titleblock(doc)
     if titleblock is None or not _confirm(plan):
         return
@@ -92,6 +99,7 @@ def place_views(doc):
     if not chosen:
         return
     plan = for_views([x.Name for x in chosen], [x.SheetNumber for x in _sheets(doc)])
+    _validate_revit_names(plan)
     titleblock = _titleblock(doc)
     if titleblock is None or not _confirm(plan):
         return

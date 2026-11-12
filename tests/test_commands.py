@@ -58,11 +58,27 @@ class TransactionTests(unittest.TestCase):
         self.transaction.Dispose.assert_called_once_with()
 
 
+class NameValidationTests(unittest.TestCase):
+    def test_invalid_name_is_rejected_before_model_changes(self):
+        naming = Mock()
+        naming.IsValidName.return_value = False
+        with patch.object(commands, 'DB', SimpleNamespace(NamingUtils=naming)):
+            with self.assertRaises(ValueError):
+                commands._validate_revit_names([SheetSpec('A101', '{3D}')])
+
+    def test_korean_name_passes_api_validation(self):
+        naming = Mock()
+        naming.IsValidName.return_value = True
+        with patch.object(commands, 'DB', SimpleNamespace(NamingUtils=naming)):
+            commands._validate_revit_names([SheetSpec('A101', '1층 평면도')])
+        naming.IsValidName.assert_called_once_with('1층 평면도')
+
+
 class ImportTests(unittest.TestCase):
     def setUp(self):
         self.forms = Mock()
         self.change = Mock()
-        for name, replacement in (('forms', self.forms), ('_change', self.change)):
+        for name, replacement in (('forms', self.forms), ('_change', self.change), ('_validate_revit_names', Mock())):
             active = patch.object(commands, name, replacement)
             active.start()
             self.addCleanup(active.stop)

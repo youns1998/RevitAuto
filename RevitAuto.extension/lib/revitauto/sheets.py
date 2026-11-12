@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
-"""Revit-independent CSV validation and sheet numbering (Python 2.7 / 3)."""
+"""Revit-independent sheet tools for IronPython 2.7 and CPython 3."""
 from __future__ import unicode_literals
 
 import csv
 import io
-import sys
 import unicodedata
 from collections import namedtuple
 
-PY2 = sys.version_info[0] == 2
-if PY2:
-    from StringIO import StringIO
-else:
-    from io import StringIO
+try:
+    text_type = unicode
+except NameError:
+    text_type = str
 
 SheetSpec = namedtuple('SheetSpec', 'number name')
 
 
 def _text(value):
-    return value.decode('utf-8') if isinstance(value, bytes) else value
+    if isinstance(value, bytes):
+        return value.decode('utf-8')
+    # Normalize CLR System.String/Char at the boundary as well as Python strings.
+    return text_type(value)
 
 
 def validate(sheets, existing_numbers=()):
@@ -31,7 +32,7 @@ def validate(sheets, existing_numbers=()):
         number, name = (_text(x).strip() for x in item)
         if not number or not name:
             raise ValueError('시트 번호와 이름은 비워 둘 수 없습니다.')
-        if any(unicodedata.category(x) == 'Cc' for x in number + name):
+        if any(unicodedata.category(_text(x)) == 'Cc' for x in number + name):
             raise ValueError('시트 번호와 이름에 줄바꿈이나 제어 문자를 사용할 수 없습니다.')
         key = number.lower()
         if key in seen:
@@ -45,7 +46,9 @@ def validate(sheets, existing_numbers=()):
 
 def read_csv_text(text):
     text = _text(text).lstrip('\ufeff')
-    stream = StringIO(text.encode('utf-8') if PY2 else text)
+    # IronPython's csv module accepts Unicode. Encoding it here produces
+    # mojibake (and C1 control characters) when its reader yields strings.
+    stream = io.StringIO(text)
     try:
         rows = csv.reader(stream, strict=True)
         header = next(rows, None)
@@ -70,6 +73,13 @@ def read_csv_file(path):
         return read_csv_text(source.read())
 
 
+def sheet_name_for_view(name):
+    """Keep the source view intact; remove prohibited characters from the new sheet name."""
+    prohibited = '\\:{}[]|;<>?`~'
+    cleaned = ''.join(' ' if x in prohibited else x for x in _text(name))
+    return ' '.join(cleaned.split()) or 'View'
+
+
 def for_views(names, existing_numbers=()):
     used = set(_text(x).strip().lower() for x in existing_numbers)
     sheets, index = [], 1
@@ -78,7 +88,7 @@ def for_views(names, existing_numbers=()):
             index += 1
         number = 'RA-{:03d}'.format(index)
         used.add(number.lower())
-        sheets.append(SheetSpec(number, name))
+        sheets.append(SheetSpec(number, sheet_name_for_view(name)))
         index += 1
     return validate(sheets)
 
@@ -87,11 +97,11 @@ def _safe_cell(value):
     value = _text(value)
     if value.lstrip().startswith(('=', '+', '-', '@')):
         value = "'" + value
-    return value.encode('utf-8') if PY2 else value
+    return value
 
 
 def csv_text(sheets):
-    stream = StringIO()
+    stream = io.StringIO()
     try:
         writer = csv.writer(stream, lineterminator='\r\n')
         writer.writerow([_safe_cell('Number'), _safe_cell('Name')])
