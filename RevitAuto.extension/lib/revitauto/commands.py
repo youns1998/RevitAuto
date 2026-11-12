@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 
 from pyrevit import DB, forms, revit, script
-from revitauto.sheets import SheetSpec, for_views, read_csv_file, validate, write_csv_file
+from revitauto.sheets import for_views, read_csv_file, validate
 
 
 def run(command):
@@ -66,10 +66,11 @@ def _change(doc, name, action):
 
 
 def import_sheets(doc):
-    path = forms.pick_file(file_ext='csv', title='Number,Name CSV 선택')
+    path = forms.pick_file(file_ext='csv', title='이름 한 열 또는 Number,Name CSV 선택')
     if not path:
         return
-    plan = validate(read_csv_file(path), [x.SheetNumber for x in _sheets(doc)])
+    existing = [x.SheetNumber for x in _sheets(doc)]
+    plan = validate(read_csv_file(path, existing), existing)
     _validate_revit_names(plan)
     titleblock = _titleblock(doc)
     if titleblock is None or not _confirm(plan):
@@ -123,9 +124,56 @@ def place_views(doc):
 
 
 def export_sheets(doc):
-    path = forms.save_file(file_ext='csv', default_name='sheet-register.csv', title='시트 목록 저장')
+    import os
+    import shutil
+    import tempfile
+    from revitauto.reports import ExportCancelled, write_bundle
+    from revitauto.revit_report import SnapshotCollector, export_pdf
+
+    options = dict(('{} · {}'.format(x.SheetNumber, x.Name), x) for x in _sheets(doc))
+    if not options:
+        forms.alert('내보낼 시트가 없습니다.', title='RevitAuto')
+        return
+    selected = forms.SelectFromList.show(sorted(options), title='상세정보를 내보낼 시트 선택',
+                                        multiselect=True, button_name='다음')
+    if not selected:
+        return
+    sheets = [options[label] for label in selected]
+    modes = ['CSV·JSON 상세정보', 'CSV·JSON 상세정보 + 시트 PDF']
+    mode = forms.CommandSwitchWindow.show(modes, message='내보낼 형식을 선택하세요.')
+    if mode is None:
+        return
+    path = forms.save_file(file_ext='zip', default_name='revit-sheet-details.zip', title='시트·뷰 상세정보 저장')
     if not path:
         return
-    sheets = [SheetSpec(x.SheetNumber, x.Name) for x in sorted(_sheets(doc), key=lambda x: x.SheetNumber.lower())]
-    write_csv_file(path, sheets)
-    forms.alert('시트 {}개의 번호와 이름을 저장했습니다.\n{}'.format(len(sheets), path), title='RevitAuto')
+    temporary = tempfile.mkdtemp(prefix='.revitauto-pdf-', dir=os.path.dirname(os.path.abspath(path)))
+    try:
+        with forms.ProgressBar(title='시트 상세정보 수집 {value}/{max_value}', cancellable=True) as progress:
+            def tick(current, total):
+                progress.update_progress(current, total)
+                return not progress.cancelled
+            collector = SnapshotCollector(doc, tick)
+            snapshot = collector.snapshot(sheets)
+            if progress.cancelled:
+                raise ExportCancelled()
+            pdf_path, pdf_status = None, 'not_requested'
+            if mode == modes[1]:
+                try:
+                    pdf_path = export_pdf(doc, sheets, temporary)
+                    pdf_status = 'included'
+                except Exception as error:
+                    collector.issue('export', 'PDF', 'pdf', error)
+                    pdf_status = 'failed_see_issues'
+            if progress.cancelled:
+                raise ExportCancelled()
+            manifest = write_bundle(path, snapshot, pdf_path, pdf_status)
+        issue_count = manifest['counts']['issues']
+        message = '시트 {}개 · 뷰 {}개 · 요소 {}개를 저장했습니다.\n{}'.format(
+            len(snapshot['sheets']), len(snapshot['views']), len(snapshot['elements']), path)
+        if issue_count:
+            message += '\n읽지 못한 항목 {}건이 있습니다. ZIP 안의 issues.csv를 확인하세요.'.format(issue_count)
+        forms.alert(message, title='RevitAuto')
+    except ExportCancelled:
+        forms.alert('내보내기를 취소했습니다.', title='RevitAuto')
+    finally:
+        shutil.rmtree(temporary)

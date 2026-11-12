@@ -1,5 +1,5 @@
 title: "CSV 시트\n일괄 생성"
-tooltip: CSV 번호와 이름을 미리 확인하고 도곽을 선택해 시트를 생성합니다.
+tooltip: 이름 한 열 또는 번호·이름 두 열 CSV로 시트를 생성합니다. 이름 목록은 번호를 자동 부여합니다.
 author: youns1998
 context: doc-project
 min_revit_version: 2026

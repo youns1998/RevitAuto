@@ -11,6 +11,26 @@ from revitauto.sheets import SheetSpec, _text, csv_text, for_views, read_csv_tex
 
 
 class UnicodeRuntimeTests(unittest.TestCase):
+    def test_one_column_with_header(self):
+        self.assertEqual(read_csv_text('Name\n1층 평면도\n2층 평면도'),
+                         [SheetSpec('A-001', '1층 평면도'), SheetSpec('A-002', '2층 평면도')])
+
+    def test_one_column_without_header_skips_existing_numbers(self):
+        plan = read_csv_text('1층 평면도\n2층 평면도', ['a-001', 'A-003'])
+        self.assertEqual([x.number for x in plan], ['A-002', 'A-004'])
+
+    def test_one_column_quoted_name(self):
+        self.assertEqual(read_csv_text('Name\n"입면, 남측"')[0].name, '입면, 남측')
+
+    def test_one_column_invalid_rows_are_rejected(self):
+        for text in ('Name\n', 'Name\n,', 'Name\n평면,입면', 'Name\n"평면\n입면"'):
+            with self.assertRaises(ValueError):
+                read_csv_text(text)
+
+    def test_explicit_number_collision_is_rejected(self):
+        with self.assertRaises(ValueError):
+            read_csv_text('Number,Name\nA101,평면도', ['a101'])
+
     def test_korean_import_preserves_codepoints(self):
         plan = read_csv_text('Number,Name\r\nA101,1층 평면도\r\nA102,남측 입면도')
         self.assertEqual(plan, [SheetSpec('A101', '1층 평면도'), SheetSpec('A102', '남측 입면도')])

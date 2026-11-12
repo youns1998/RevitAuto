@@ -8,11 +8,11 @@ RVT 모델을 복사해서 실습합니다. PDF·DWG 도면만으로는 Revit AP
 
 ## 2. 시트 목록부터 저장하기
 
-‘시트 목록 내보내기’를 누르고 `before.csv`로 저장합니다. 모델에 손대지 않고 기존 시트 번호와 이름을 확인할 수 있습니다.
+‘시트·뷰 상세정보 내보내기’를 누르고 실습할 시트를 선택합니다. ‘CSV·JSON 상세정보’를 선택해 `before.zip`으로 저장합니다. 압축을 풀고 `sheets.csv`와 `parameters.csv`를 열면 기존 번호·이름과 내부 정보를 확인할 수 있습니다. 모델은 변경하지 않습니다.
 
 ## 3. 실습 시트 3개 만들기
 
-‘CSV 시트 일괄 생성’에서 [practice-sheets.csv](../samples/practice-sheets.csv)를 선택합니다.
+‘CSV 시트 일괄 생성’에서 [practice-sheets.csv](../samples/practice-sheets.csv)를 선택합니다. 이름만 한 열로 적어 번호를 자동 부여하려면 [names-only.csv](../samples/names-only.csv)를 선택합니다.
 
 ```csv
 Number,Name
@@ -33,6 +33,6 @@ PRACTICE-003,실습 - 입면도
 
 ## 5. 결과 비교하기
 
-시트 목록을 `after.csv`로 다시 내보내고 `before.csv`와 비교합니다. 실습 시트와 자동 배치 시트가 추가됐는지, 기존 번호와 이름이 그대로인지 확인합니다. 결과가 마음에 들면 사본만 저장하고, 다시 시작하려면 사본을 닫고 원본에서 새 사본을 만듭니다.
+같은 시트를 `after.zip`으로 다시 내보내고 두 ZIP의 `sheets.csv`, `placements.csv`, `view_elements.csv`를 비교합니다. 실습 시트와 자동 배치 시트도 선택해야 새 시트의 정보가 출력됩니다. `parameters.csv`에서 요소·유형의 상세 값을 확인하고, 도면 모양까지 보려면 내보내기에서 PDF 포함을 선택합니다. 결과가 마음에 들면 사본만 저장하고, 다시 시작하려면 사본을 닫고 원본에서 새 사본을 만듭니다.
 
 문제가 생기면 오류 창의 메시지와 사용한 CSV를 확인합니다. 실제 Revit에서 결과를 확인하기 전까지는 자동 검사 통과와 실제 모델 적용 성공을 구분합니다.

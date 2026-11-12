@@ -44,16 +44,28 @@ def validate(sheets, existing_numbers=()):
     return result
 
 
-def read_csv_text(text):
+def read_csv_text(text, existing_numbers=()):
     text = _text(text).lstrip('\ufeff')
     # IronPython's csv module accepts Unicode. Encoding it here produces
     # mojibake (and C1 control characters) when its reader yields strings.
     stream = io.StringIO(text)
     try:
         rows = csv.reader(stream, strict=True)
-        header = next(rows, None)
-        if header is None or [_text(x).strip().lower() for x in header] != ['number', 'name']:
-            raise ValueError('CSV 첫 줄은 Number,Name이어야 합니다.')
+        header = next((row for row in rows if row), None)
+        if header is None:
+            raise ValueError('생성할 시트가 없습니다.')
+        if len(header) == 1:
+            first = _text(header[0]).strip()
+            names = [] if first.lower() in ('name', '이름', '시트명') else [first]
+            for row in rows:
+                if not row:
+                    continue
+                if len(row) != 1:
+                    raise ValueError('이름 목록 CSV는 한 행에 이름 한 개만 입력하세요.')
+                names.append(_text(row[0]))
+            return _for_names(names, existing_numbers, 'A-')
+        if [_text(x).strip().lower() for x in header] != ['number', 'name']:
+            raise ValueError('CSV는 이름 한 열 또는 Number,Name 두 열이어야 합니다.')
         sheets = []
         for row in rows:
             if not row:
@@ -61,16 +73,16 @@ def read_csv_text(text):
             if len(row) != 2:
                 raise ValueError('CSV {}행: 번호와 이름 두 열이 필요합니다.'.format(rows.line_num))
             sheets.append(SheetSpec(*[_text(x) for x in row]))
-        return validate(sheets)
+        return validate(sheets, existing_numbers)
     except csv.Error as error:
         raise ValueError('CSV 따옴표와 구분자를 확인하세요: {}'.format(error))
     finally:
         stream.close()
 
 
-def read_csv_file(path):
+def read_csv_file(path, existing_numbers=()):
     with io.open(path, 'r', encoding='utf-8-sig', newline='') as source:
-        return read_csv_text(source.read())
+        return read_csv_text(source.read(), existing_numbers)
 
 
 def sheet_name_for_view(name):
@@ -81,14 +93,18 @@ def sheet_name_for_view(name):
 
 
 def for_views(names, existing_numbers=()):
+    return _for_names([sheet_name_for_view(x) for x in names], existing_numbers, 'RA-')
+
+
+def _for_names(names, existing_numbers, prefix):
     used = set(_text(x).strip().lower() for x in existing_numbers)
     sheets, index = [], 1
     for name in names:
-        while 'ra-{:03d}'.format(index) in used:
+        while (prefix + '{:03d}'.format(index)).lower() in used:
             index += 1
-        number = 'RA-{:03d}'.format(index)
+        number = prefix + '{:03d}'.format(index)
         used.add(number.lower())
-        sheets.append(SheetSpec(number, sheet_name_for_view(name)))
+        sheets.append(SheetSpec(number, _text(name)))
         index += 1
     return validate(sheets)
 

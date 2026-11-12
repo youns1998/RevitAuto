@@ -1,5 +1,5 @@
-title: "시트 목록\n내보내기"
-tooltip: 시트 번호와 이름을 한글 UTF-8 CSV 파일로 저장합니다.
+title: "시트·뷰 상세정보\n내보내기"
+tooltip: 시트·뷰·요소·주석·파라미터를 CSV·JSON ZIP으로 저장합니다. 시트 PDF도 선택할 수 있습니다.
 author: youns1998
 context: doc-project
 min_revit_version: 2026
