@@ -1,0 +1,5 @@
+title: "CSV 시트\n일괄 생성"
+tooltip: CSV 번호와 이름을 미리 확인하고 도곽을 선택해 시트를 생성합니다.
+author: youns1998
+context: doc-project
+min_revit_version: 2026

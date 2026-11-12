@@ -1,0 +1,7 @@
+{
+  "name": "RevitAuto",
+  "description": "Python sheet creation, view placement and sheet register tools for pyRevit",
+  "author": "youns1998",
+  "url": "https://github.com/youns1998/RevitAuto",
+  "dependencies": []
+}

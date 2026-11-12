@@ -1,0 +1,99 @@
+"""Check cancellation and transaction flow with a stand-in API, not real Revit."""
+import importlib
+import sys
+import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+from revitauto.sheets import SheetSpec
+
+with patch.dict(sys.modules, {'pyrevit': SimpleNamespace(DB=None, forms=None, revit=None, script=None)}):
+    commands = importlib.import_module('revitauto.commands')
+
+
+class TransactionTests(unittest.TestCase):
+    def setUp(self):
+        self.transaction = Mock()
+        self.transaction.Start.return_value = 'started'
+        self.transaction.GetStatus.return_value = 'started'
+        self.transaction.Commit.return_value = 'committed'
+        self.db = SimpleNamespace(
+            Transaction=Mock(return_value=self.transaction),
+            TransactionStatus=SimpleNamespace(Started='started', Committed='committed'))
+        self.patch = patch.object(commands, 'DB', self.db)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+
+    def test_success_commits_once(self):
+        work = Mock()
+        commands._change('document', 'batch', work)
+        work.assert_called_once_with()
+        self.transaction.Commit.assert_called_once_with()
+        self.transaction.RollBack.assert_not_called()
+        self.transaction.Dispose.assert_called_once_with()
+
+    def test_error_rolls_back_all_changes(self):
+        with self.assertRaises(ValueError):
+            commands._change('document', 'batch', Mock(side_effect=ValueError('invalid view')))
+        self.transaction.RollBack.assert_called_once_with()
+        self.transaction.Commit.assert_not_called()
+        self.transaction.Dispose.assert_called_once_with()
+
+    def test_failed_start_never_changes_model(self):
+        self.transaction.Start.return_value = 'not-started'
+        self.transaction.GetStatus.return_value = 'not-started'
+        work = Mock()
+        with self.assertRaises(RuntimeError):
+            commands._change('document', 'batch', work)
+        work.assert_not_called()
+        self.transaction.Commit.assert_not_called()
+        self.transaction.RollBack.assert_not_called()
+
+    def test_revit_rejected_commit_is_failure(self):
+        self.transaction.Commit.return_value = 'rolledback'
+        self.transaction.GetStatus.return_value = 'rolledback'
+        with self.assertRaises(RuntimeError):
+            commands._change('document', 'batch', Mock())
+        self.transaction.RollBack.assert_not_called()
+        self.transaction.Dispose.assert_called_once_with()
+
+
+class ImportTests(unittest.TestCase):
+    def setUp(self):
+        self.forms = Mock()
+        self.change = Mock()
+        for name, replacement in (('forms', self.forms), ('_change', self.change)):
+            active = patch.object(commands, name, replacement)
+            active.start()
+            self.addCleanup(active.stop)
+
+    def test_file_cancel_does_not_start_transaction(self):
+        self.forms.pick_file.return_value = None
+        commands.import_sheets('document')
+        self.change.assert_not_called()
+
+    def test_collision_stops_before_titleblock_or_transaction(self):
+        with patch.object(commands, 'read_csv_file', return_value=[SheetSpec('A101', 'plan')]), \
+             patch.object(commands, '_sheets', return_value=[SimpleNamespace(SheetNumber='a101')]), \
+             patch.object(commands, '_titleblock') as titleblock:
+            with self.assertRaises(ValueError):
+                commands.import_sheets('document')
+            titleblock.assert_not_called()
+            self.change.assert_not_called()
+
+    def test_preview_cancel_does_not_start_transaction(self):
+        with patch.object(commands, 'read_csv_file', return_value=[SheetSpec('A101', 'plan')]), \
+             patch.object(commands, '_sheets', return_value=[]), \
+             patch.object(commands, '_titleblock', return_value='block'), \
+             patch.object(commands, '_confirm', return_value=False):
+            commands.import_sheets('document')
+            self.change.assert_not_called()
+
+    def test_titleblock_cancel_does_not_start_transaction(self):
+        with patch.object(commands, 'read_csv_file', return_value=[SheetSpec('A101', 'plan')]), \
+             patch.object(commands, '_sheets', return_value=[]), \
+             patch.object(commands, '_titleblock', return_value=None), \
+             patch.object(commands, '_confirm') as confirm:
+            commands.import_sheets('document')
+            confirm.assert_not_called()
+            self.change.assert_not_called()

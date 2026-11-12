@@ -1,0 +1,5 @@
+title: "뷰 → 시트\n자동 배치"
+tooltip: 선택한 뷰마다 새 시트를 만들고 중앙에 배치합니다.
+author: youns1998
+context: doc-project
+min_revit_version: 2026
