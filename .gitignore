@@ -8,3 +8,10 @@ artifacts/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Private Revit source assets are kept outside the published code.
+*.[rR][vV][tT]
+*.[rR][fF][aA]
+*.[rR][tT][eE]
+*.[rR][vV][tT].[bB][aA][kK]
+*.[rR][vV][tT].[zZ][iI][pP]
